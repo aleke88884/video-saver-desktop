@@ -34,12 +34,13 @@ jobs:
       - name: Zip Windows Build
         shell: pwsh
         run: |
-          $zipSource = "build/windows/x64/Release/"
+          $zipSource = "build/windows/x64/runner/Release"
           if (-Not (Test-Path $zipSource)) {
             Write-Error "Runner folder not found at $zipSource"
             exit 1
           }
           Compress-Archive -Path "$zipSource\*" -DestinationPath windows_build.zip
+      
       
       
 
