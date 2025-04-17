@@ -31,8 +31,16 @@ jobs:
       - name: Build Windows app
         run: flutter build windows
 
-      - name: Zip Windows Build
-        run: Compress-Archive -Path build\windows\x64\Release\Runner\* -DestinationPath windows_build.zip
+      - name: Find and zip .exe folder
+        shell: pwsh
+        run: |
+          $exePath = Get-ChildItem -Path build/windows -Recurse -Filter *.exe | Select-Object -First 1
+          if ($exePath -eq $null) {
+            Write-Error "Executable not found!"
+            exit 1
+          }
+          $folderToZip = $exePath.Directory.FullName
+          Compress-Archive -Path "$folderToZip\*" -DestinationPath windows_build.zip
       
 
       - name: Upload Artifact
