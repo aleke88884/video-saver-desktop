@@ -1,3 +1,6 @@
+analyzer:
+  errors:
+    sort_constructors_first: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:
