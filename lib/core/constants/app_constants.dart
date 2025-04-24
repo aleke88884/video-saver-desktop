@@ -17,4 +17,5 @@ class AppConstants {
     ),
   );
   static const String videoTable = 'video_table';
+  static const String resultBox = 'resultBox';
 }

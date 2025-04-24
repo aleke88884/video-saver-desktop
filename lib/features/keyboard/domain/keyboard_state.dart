@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
+import 'package:video_desktop_saver/features/keyboard/data/typing_result.dart';
 
 class KeyboardState extends ChangeNotifier {
   // ignore: prefer_final_fields
@@ -27,11 +29,32 @@ class KeyboardState extends ChangeNotifier {
   String userInput = '';
   int currentPosition = 0;
   bool isCompleted = false;
+  DateTime? startTime;
+  int charCount = 0;
 
   Set<String> get pressedKeys => _pressedKeys;
 
   KeyboardState() {
     _loadRandomText();
+  }
+
+  Future<void> saveWpmResult() async {
+    if (isCompleted && wpm > 0) {
+      final box = Hive.box<TypingResult>('results');
+      await box.add(
+        TypingResult(
+          wpm: wpm,
+          timeStamp: DateTime.now(),
+        ),
+      );
+    }
+  }
+
+  double get wpm {
+    if (startTime == null || userInput.isEmpty) return 0.0;
+    final elapsedTime = DateTime.now().difference(startTime!).inSeconds / 60;
+    if (elapsedTime == 0) return 0.0;
+    return (charCount / 5) / elapsedTime;
   }
 
   void pressKey(String key) {
@@ -52,14 +75,24 @@ class KeyboardState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateUserInput(String input) {
+  void updateUserInput(String input) async {
     if (isCompleted) return; // Предотвратить ввод после завершения
 
     userInput = input;
     currentPosition = input.length;
 
+    if (startTime == null && input.isNotEmpty) {
+      startTime = DateTime.now();
+    }
+
+    charCount = input.length;
+
     if (currentPosition >= currentText.length) {
+      await saveWpmResult();
       isCompleted = true;
+      startTime = null;
+      charCount = 0;
+
       Future.delayed(const Duration(seconds: 1), () {
         _loadRandomText();
       });

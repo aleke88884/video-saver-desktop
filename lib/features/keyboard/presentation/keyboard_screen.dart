@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -5,8 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hive/hive.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:video_desktop_saver/core/constants/app_constants.dart';
 import 'package:video_desktop_saver/core/widget/keyboard_widget.dart';
+import 'package:video_desktop_saver/features/keyboard/data/typing_result.dart';
 import 'package:video_desktop_saver/features/keyboard/domain/keyboard_state.dart';
 
 class KeyboardScreen extends StatefulWidget {
@@ -20,15 +25,18 @@ class KeyboardScreen extends StatefulWidget {
 class _KeyboardScreenState extends State<KeyboardScreen> {
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _controller = TextEditingController();
+  Timer? wpmTimer;
   @override
   void initState() {
     super.initState();
     _focusNode.requestFocus();
+    startWpmTimer();
   }
 
   @override
   void dispose() {
     _focusNode.dispose();
+    wpmTimer?.cancel();
     super.dispose();
   }
 
@@ -77,6 +85,15 @@ class _KeyboardScreenState extends State<KeyboardScreen> {
               // 👇 Обновляем состояние
               keyboardState.updateUserInput(_controller.text);
               if (keyboardState.isCompleted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('✅ Текст завершён!')),
+                );
+                final resultBox =
+                    Hive.box<TypingResult>(AppConstants.resultBox);
+                resultBox.add(TypingResult(
+                  wpm: keyboardState.wpm,
+                  timeStamp: DateTime.now(),
+                ));
                 _controller.clear(); // сброс ввода
               }
             } else if (event is KeyUpEvent) {
@@ -87,21 +104,51 @@ class _KeyboardScreenState extends State<KeyboardScreen> {
         focusNode: _focusNode,
         child: Column(
           children: [
-            // Text display area
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.only(
-                  top: 20.0,
-                  right: 30,
-                  left: 30,
-                ),
-                padding: const EdgeInsets.all(20.0),
-                child: RichText(
-                  text: TextSpan(
-                    children: _buildTextSpans(
-                        currentText, userInput, currentPosition),
+            SizedBox(
+              height: 40,
+              width: 100,
+              child: Stack(children: [
+                Positioned(
+                  left: 10,
+                  top: 10,
+                  child: Text(
+                    '${keyboardState.wpm.toStringAsFixed(1)} WPM',
+                    style: GoogleFonts.asapCondensed(
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
+              ]),
+            ),
+            // Text display area
+            Container(
+              margin: const EdgeInsets.only(
+                top: 20.0,
+                right: 30,
+                left: 30,
+              ),
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        children: _buildTextSpans(
+                            currentText, userInput, currentPosition),
+                      ),
+                    ),
+                  ),
+                  // History widget with fixed width
+                  Container(
+                    width:
+                        200, // Adjusted width without .w (remove flutter_screenutil dependency if not needed)
+                    height: 200,
+                    margin: const EdgeInsets.only(left: 16.0),
+                    child: _buildWpmHistory(),
+                  ),
+                ],
               ),
             ),
             // Hidden TextField for input
@@ -153,6 +200,7 @@ class _KeyboardScreenState extends State<KeyboardScreen> {
                 onPressed: () {
                   keyboardState.resetText();
                   _controller.clear();
+                  _focusNode.requestFocus();
                 },
                 child: const Text('New Text'),
               ),
@@ -312,6 +360,43 @@ class _KeyboardScreenState extends State<KeyboardScreen> {
     );
   }
 
+  Widget _buildWpmHistory() {
+    final box = Hive.box<TypingResult>(AppConstants.resultBox);
+    final results = box.values.toList().reversed.toList(); // последние — сверху
+
+    if (results.isEmpty) {
+      return const Center(
+        child: Text(
+          'Нет результатов',
+          style: TextStyle(color: Colors.white),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: results.length,
+      itemBuilder: (context, index) {
+        final result = results[index];
+        return Card(
+          color: Colors.grey[850],
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              '${result.wpm.toStringAsFixed(1)} WPM\n${formatDate(result.timeStamp)}',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String formatDate(DateTime dateTime) {
+    final formatter = DateFormat('dd MMM, HH:mm');
+    return formatter.format(dateTime);
+  }
+
   Future<void> _pickDocxFile(BuildContext context) async {
     final result = await FilePicker.platform
         .pickFiles(type: FileType.custom, allowedExtensions: ['txt']);
@@ -324,5 +409,11 @@ class _KeyboardScreenState extends State<KeyboardScreen> {
         Provider.of<KeyboardState>(context, listen: false).setText(content);
       }
     }
+  }
+
+  void startWpmTimer() {
+    wpmTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) setState(() {});
+    });
   }
 }

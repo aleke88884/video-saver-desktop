@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:hive/hive.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_desktop_saver/core/constants/app_constants.dart';
 import 'package:video_desktop_saver/core/routing/app_router.dart';
+import 'package:video_desktop_saver/features/keyboard/data/typing_result.dart';
 import 'package:video_desktop_saver/features/keyboard/domain/keyboard_state.dart';
 
 void main() async {
@@ -25,6 +28,12 @@ void main() async {
   //   await windowManager.show();
   //   await windowManager.focus();
   // });
+  final dir = await getApplicationDocumentsDirectory();
+  Hive.init(dir.path);
+
+  Hive.registerAdapter(TypingResultAdapter());
+
+  await Hive.openBox<TypingResult>(AppConstants.resultBox);
 
   await Supabase.initialize(
     url: 'https://dvphnvjncfnmpbbcwscf.supabase.co',
